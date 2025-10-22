@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container" id="dashboard">
+    <h1>👋 Welcome</h1>
+    <p>Below is the list of all registered users:</p>
+
+    <ul id="userList">
+      <li>Loading users...</li>
+    </ul>
+
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <script>
+    // Check for JWT token
+    const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "login.html";
+    }
+
+    // Fetch and display users
+    async function fetchUsers() {
+      try {
+        const response = await fetch("http://localhost:3000/users", {
+          headers: { "Authorization": "Bearer " + token }
+        });
+        const users = await response.json();
+
+        const list = document.getElementById("userList");
+        list.innerHTML = "";
+
+        if (users.length === 0) {
+          list.innerHTML = "<li>No users found.</li>";
+          return;
+        }
+
+        users.forEach(user => {
+          const li = document.createElement("li");
+          li.textContent = `${user.username} (${user.email})`;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        console.error("Error fetching users:", err);
+        document.getElementById("userList").innerHTML = "<li>Failed to load users.</li>";
+      }
+    }
+
+    // Logout function
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      window.location.href = "login.html";
+    });
+
+    fetchUsers();
+  </script>
+</body>
+</html>
