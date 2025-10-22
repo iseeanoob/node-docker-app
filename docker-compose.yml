@@ -1,0 +1,39 @@
+services:
+  db:
+    image: mysql:8
+    container_name: db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: mydb
+      MYSQL_USER: iseeanoob
+      MYSQL_PASSWORD: pass
+    ports:
+      - "3306:3306"
+    networks:
+      - my-network
+    volumes:
+      - db_data:/var/lib/mysql
+
+  app:
+    build: .
+    container_name: app
+    restart: always
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_USER: iseeanoob
+      DB_PASSWORD: pass
+      DB_NAME: mydb
+    ports:
+      - "3000:3000"
+    networks:
+      - my-network
+
+networks:
+  my-network:
+    name: my-network
+
+volumes:
+  db_data:
