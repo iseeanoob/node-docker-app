@@ -1,101 +1,162 @@
 const express = require("express");
-const bcrypt = require("bcryptjs");
 const mysql = require("mysql2/promise");
+const bcrypt = require("bcryptjs");
+const bodyParser = require("body-parser");
+const jwt = require("jsonwebtoken");
 
 const app = express();
-app.use(express.json());
+app.use(bodyParser.json());
 
-// MySQL connection pool
-const pool = mysql.createPool({
-  host: "db",       // Docker container name of MySQL
-  user: "iseeanoob",
-  password: "pass",
-  database: "mydb",
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretjwtkey";
+
+// DB config
+const DB_CONFIG = {
+  host: process.env.DB_HOST || "db",
+  user: process.env.DB_USER || "iseeanoob",
+  password: process.env.DB_PASSWORD || "pass",
+  database: process.env.DB_NAME || "mydb",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-});
+};
 
-// Initialize users table
-(async () => {
-  try {
-    const createTableSQL = `
-      CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL UNIQUE,
-        email VARCHAR(100) NOT NULL UNIQUE,
-        password_hash VARCHAR(255) NOT NULL
-      )
-    `;
-    await pool.execute(createTableSQL);
-    console.log("✅ Users table is ready");
-  } catch (err) {
-    console.error("❌ Error initializing table:", err);
-  }
-})();
-
-// Home route
-app.get("/", (req, res) => {
-  res.send(`<h1>🚀 Node + MySQL App</h1><p>Use /register and /login endpoints</p>`);
-});
-
-// Register route
-app.post("/register", async (req, res) => {
-  const { username, email, password } = req.body;
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: "Username, email, and password are required" });
-  }
-
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.execute(
-      "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
-      [username, email, hashedPassword]
-    );
-    res.status(201).json({ id: result.insertId, username, email });
-  } catch (err) {
-    if (err.code === "ER_DUP_ENTRY") {
-      res.status(400).json({ error: "Username or email already exists" });
-    } else {
-      console.error(err);
-      res.status(500).json({ error: "Server error" });
+// 🔁 Retry MySQL connection until successful
+async function connectWithRetry(retries = 10, delay = 5000) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      const pool = mysql.createPool(DB_CONFIG);
+      const conn = await pool.getConnection();
+      console.log("✅ Connected to MySQL!");
+      await conn.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          username VARCHAR(255) NOT NULL,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password VARCHAR(255) NOT NULL
+        )
+      `);
+      conn.release();
+      console.log("✅ Users table ready");
+      return pool;
+    } catch (err) {
+      console.log(`❌ MySQL not ready (attempt ${i}/${retries}): ${err.code}`);
+      if (i === retries) {
+        console.error("❌ Failed to connect to MySQL after multiple attempts");
+        process.exit(1);
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-});
+}
 
-// Login route
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+let pool;
 
-  try {
-    const [rows] = await pool.execute("SELECT * FROM users WHERE email = ?", [email]);
-    if (rows.length === 0) return res.status(404).json({ error: "User not found" });
+// Initialize
+(async () => {
+  pool = await connectWithRetry();
 
-    const user = rows[0];
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ error: "Invalid password" });
+  // Routes
+  app.get("/", (req, res) => {
+    res.send("🚀 Node + MySQL App Running");
+  });
 
-    res.json({ message: "Login successful", username: user.username, email: user.email });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+  app.post("/register", async (req, res) => {
+    const { username, email, password } = req.body;
+    if (!username || !email || !password)
+      return res.status(400).json({ error: "All fields required" });
 
-// Get all users (for testing)
-app.get("/users", async (req, res) => {
-  try {
-    const [rows] = await pool.execute("SELECT id, username, email FROM users");
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+    try {
+      const hashed = await bcrypt.hash(password, 10);
+      const [result] = await pool.query(
+        "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+        [username, email, hashed]
+      );
+      res.json({ id: result.insertId, username, email });
+    } catch (err) {
+      if (err.code === "ER_DUP_ENTRY") {
+        res.status(400).json({ error: "Email already exists" });
+      } else {
+        res.status(500).json({ error: err.message });
+      }
+    }
+  });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+  app.post("/login", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ error: "Email & password required" });
+
+    try {
+      const [rows] = await pool.query("SELECT * FROM users WHERE email = ?", [
+        email,
+      ]);
+      if (rows.length === 0)
+        return res.status(404).json({ error: "User not found" });
+
+      const user = rows[0];
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) return res.status(401).json({ error: "Invalid password" });
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+      res.json({
+        token,
+        user: { id: user.id, username: user.username, email: user.email },
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/users", async (req, res) => {
+    try {
+      const [rows] = await pool.query("SELECT id, username, email FROM users");
+      res.json(rows);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/users/:id", async (req, res) => {
+    try {
+      const [rows] = await pool.query(
+        "SELECT id, username, email FROM users WHERE id = ?",
+        [req.params.id]
+      );
+      if (rows.length === 0)
+        return res.status(404).json({ error: "User not found" });
+      res.json(rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/users/:id", async (req, res) => {
+    try {
+      const [result] = await pool.query(
+        "DELETE FROM users WHERE id = ?",
+        [req.params.id]
+      );
+      if (result.affectedRows === 0)
+        return res.status(404).json({ error: "User not found" });
+      res.json({ message: "User deleted successfully" });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Start server
+  app.listen(PORT, () =>
+    console.log(`🚀 Server running on http://localhost:${PORT}`)
+  );
+})();
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  if (pool) await pool.end();
+  process.exit(0);
 });
