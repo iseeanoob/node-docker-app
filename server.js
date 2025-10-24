@@ -4,10 +4,10 @@ const bcrypt = require("bcryptjs");
 const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
 
-app.use(express.static('public'));
-
 const app = express();
 app.use(bodyParser.json());
+app.use(express.static('public'));
+
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretjwtkey";
