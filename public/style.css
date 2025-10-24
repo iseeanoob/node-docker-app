@@ -33,6 +33,16 @@ input {
   font-size: 1rem;
 }
 
+#input {
+  display: block;
+  width: 50%;
+  padding: 0.0rem;
+  margin-bottom: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
 button {
   background: #2563eb;
   color: white;
