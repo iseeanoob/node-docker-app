@@ -1,20 +1,21 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
   Button,
   FlatList,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import axios from "axios";
+
+const API_URL = "http://localhost:3000"; // Change to your Docker host if needed
 
 interface Post {
-  id: string;
+  id: number;
   text: string;
   emojis: string[];
   createdAt: number;
@@ -22,7 +23,7 @@ interface Post {
 }
 
 interface Request {
-  id: string;
+  id: number;
   feeling: string;
   createdAt: number;
   reviewed?: boolean;
@@ -36,16 +37,19 @@ export default function UltimateAdminDashboard() {
   const [searchRequest, setSearchRequest] = useState("");
 
   /** LOAD DATA */
-  const loadData = async () => {
-    try {
-      const storedPosts = await AsyncStorage.getItem("@silentcircle_posts");
-      const storedRequests = await AsyncStorage.getItem("@silentcircle_requests");
-      if (storedPosts) setPosts(JSON.parse(storedPosts));
-      if (storedRequests) setRequests(JSON.parse(storedRequests));
-    } catch (err) {
-      console.error("Error loading data:", err);
-    }
-  };
+const loadData = async () => {
+  try {
+    const [postsRes, requestsRes] = await Promise.all([
+      axios.get<Post[]>(`${API_URL}/posts`),
+      axios.get<Request[]>(`${API_URL}/requests`),
+    ]);
+    setPosts(postsRes.data);      // TypeScript now knows this is Post[]
+    setRequests(requestsRes.data); // TypeScript now knows this is Request[]
+  } catch (err) {
+    console.error("Error loading data:", err);
+  }
+};
+
 
   useEffect(() => {
     loadData();
@@ -59,21 +63,23 @@ export default function UltimateAdminDashboard() {
     if (minutes < 60) return `${minutes} min ago`;
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours} hr ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
+    return `${Math.floor(hours / 24)}d ago`;
   };
 
   /** POSTS */
-  const deletePost = (id: string) => {
+  const deletePost = async (id: number) => {
     Alert.alert("Delete Post?", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          const updated = posts.filter((p) => p.id !== id);
-          setPosts(updated);
-          await AsyncStorage.setItem("@silentcircle_posts", JSON.stringify(updated));
+          try {
+            await axios.delete(`${API_URL}/posts/${id}`);
+            loadData();
+          } catch (err) {
+            console.error("Failed to delete post:", err);
+          }
         },
       },
     ]);
@@ -86,65 +92,42 @@ export default function UltimateAdminDashboard() {
         text: "Clear",
         style: "destructive",
         onPress: async () => {
-          await AsyncStorage.removeItem("@silentcircle_posts");
-          setPosts([]);
+          try {
+            await Promise.all(posts.map((p) => axios.delete(`${API_URL}/posts/${p.id}`)));
+            loadData();
+          } catch (err) {
+            console.error("Failed to clear posts:", err);
+          }
         },
       },
     ]);
   };
 
   /** REQUESTS */
-  const deleteRequest = (id: string) => {
+  const deleteRequest = async (id: number) => {
     Alert.alert("Delete Request?", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
-          const updated = requests.filter((r) => r.id !== id);
-          setRequests(updated);
-          await AsyncStorage.setItem("@silentcircle_requests", JSON.stringify(updated));
+          try {
+            await axios.delete(`${API_URL}/requests/${id}`);
+            loadData();
+          } catch (err) {
+            console.error("Failed to delete request:", err);
+          }
         },
       },
     ]);
   };
 
-  const clearRequests = async () => {
-    Alert.alert("Clear All Requests?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Clear",
-        style: "destructive",
-        onPress: async () => {
-          await AsyncStorage.removeItem("@silentcircle_requests");
-          setRequests([]);
-        },
-      },
-    ]);
-  };
-
-  const markAsReviewed = async (id: string) => {
-    const updated = requests.map((r) =>
-      r.id === id ? { ...r, reviewed: true } : r
-    );
-    setRequests(updated);
-    await AsyncStorage.setItem("@silentcircle_requests", JSON.stringify(updated));
-  };
-
-  /** EXPORT */
-  const exportData = async () => {
-    let csv = "Type,Text,Emojis,Reviewed,CreatedAt\n";
-    posts.forEach((p) => {
-      csv += `Post,"${p.text}","${p.emojis.join(" ")}",,${formatTime(p.createdAt)}\n`;
-    });
-    requests.forEach((r) => {
-      csv += `Request,"${r.feeling}",,${r.reviewed ? "Yes" : "No"},${formatTime(r.createdAt)}\n`;
-    });
-
+  const markAsReviewed = async (id: number) => {
     try {
-      await Share.share({ message: csv });
+      await axios.put(`${API_URL}/requests/${id}`, { reviewed: true });
+      loadData();
     } catch (err) {
-      console.error("Export failed:", err);
+      console.error("Failed to mark request reviewed:", err);
     }
   };
 
@@ -160,6 +143,18 @@ export default function UltimateAdminDashboard() {
     .filter((r) => (showOnlyUnreviewed ? !r.reviewed : true))
     .filter((r) => r.feeling.toLowerCase().includes(searchRequest.toLowerCase()))
     .sort((a, b) => b.createdAt - a.createdAt);
+
+  /** EXPORT */
+  const exportData = () => {
+    let csv = "Type,Text,Emojis,Reviewed,CreatedAt\n";
+    filteredPosts.forEach((p) => {
+      csv += `Post,"${p.text}","${p.emojis.join(" ")}",,${formatTime(p.createdAt)}\n`;
+    });
+    filteredRequests.forEach((r) => {
+      csv += `Request,"${r.feeling}",,${r.reviewed ? "Yes" : "No"},${formatTime(r.createdAt)}\n`;
+    });
+    Alert.alert("CSV Export", csv);
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 80 }}>
@@ -182,14 +177,12 @@ export default function UltimateAdminDashboard() {
         <Button title="Clear All Posts" onPress={clearPosts} color="red" />
         <FlatList
           data={filteredPosts}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id.toString()}
           scrollEnabled={false}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.item} onLongPress={() => deletePost(item.id)}>
               <Text style={styles.timestamp}>{formatTime(item.createdAt)}</Text>
-              <Text>
-                {item.emojis.join(" ")} {item.text} {item.edited ? "(edited)" : ""}
-              </Text>
+              <Text>{item.emojis.join(" ")} {item.text} {item.edited ? "(edited)" : ""}</Text>
             </TouchableOpacity>
           )}
         />
@@ -206,7 +199,7 @@ export default function UltimateAdminDashboard() {
         />
 
         <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
-          <Button title="Clear All Requests" onPress={clearRequests} color="red" />
+          <Button title="Clear All Requests" onPress={() => requests.forEach(r => deleteRequest(r.id))} color="red" />
           <Button
             title={showOnlyUnreviewed ? "Show All" : "Show Unreviewed"}
             onPress={() => setShowOnlyUnreviewed(!showOnlyUnreviewed)}
@@ -215,7 +208,7 @@ export default function UltimateAdminDashboard() {
 
         <FlatList
           data={filteredRequests}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id.toString()}
           scrollEnabled={false}
           renderItem={({ item }) => (
             <View style={[styles.item, item.reviewed && { backgroundColor: "#e0ffe0" }]}>
@@ -224,17 +217,11 @@ export default function UltimateAdminDashboard() {
 
               <View style={{ flexDirection: "row", marginTop: 6 }}>
                 {!item.reviewed && (
-                  <TouchableOpacity
-                    style={styles.reviewButton}
-                    onPress={() => markAsReviewed(item.id)}
-                  >
+                  <TouchableOpacity style={styles.reviewButton} onPress={() => markAsReviewed(item.id)}>
                     <Text style={{ color: "white" }}>Mark as Reviewed</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  style={[styles.reviewButton, { backgroundColor: "#dc3545", marginLeft: 10 }]}
-                  onPress={() => deleteRequest(item.id)}
-                >
+                <TouchableOpacity style={[styles.reviewButton, { backgroundColor: "#dc3545", marginLeft: 10 }]} onPress={() => deleteRequest(item.id)}>
                   <Text style={{ color: "white" }}>Delete</Text>
                 </TouchableOpacity>
               </View>

@@ -1,4 +1,5 @@
 services:
+  # 🗄️ MySQL Database
   db:
     image: mysql:8.0
     container_name: node-docker-db
@@ -20,6 +21,7 @@ services:
       timeout: 3s
       retries: 10
 
+  # 🚀 Node.js Backend
   app:
     build: .
     container_name: node-docker-app
@@ -29,15 +31,37 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
+    env_file:
+      - secret.env
     environment:
       DB_HOST: db
       DB_USER: iseeanoob
       DB_PASSWORD: pass
       DB_NAME: mydb
       JWT_SECRET: supersecretjwtkey
+      NODE_ENV: production
     networks:
       - my-network
     command: ["npm", "start"]
+    volumes:
+      - .:/usr/src/app
+
+  # 📱 Expo App
+  expo:
+    container_name: expo-project
+    image: node:20
+    working_dir: /usr/src/app
+    restart: always
+    ports:
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    networks:
+      - my-network
+    volumes:
+      - "./expo project:/usr/src/app"   # <-- fixed with quotes
+    command: >
+      sh -c "npm install && npx expo start --tunnel"
 
 volumes:
   mysql_data:
