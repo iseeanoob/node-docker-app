@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   # 🗄️ MySQL Database
   db:
@@ -53,15 +55,23 @@ services:
     working_dir: /usr/src/app
     restart: always
     ports:
-      - "19000:19000"
-      - "19001:19001"
-      - "19002:19002"
+      - "8081:8081"    # Metro Bundler
+      - "19000:19000"  # DevTools
+      - "19001:19001"  # Debugger
+      - "19002:19002"  # Web UI
     networks:
       - my-network
     volumes:
-      - "./expo project:/usr/src/app"   # <-- fixed with quotes
+      - "./expo project:/usr/src/app"
+    environment:
+      EXPO_NONINTERACTIVE: 1
+      CI: true
     command: >
-      sh -c "npm install && npx expo start --tunnel"
+      sh -c "
+        npm install -g @expo/ngrok@4.1.0 expo-cli &&
+        npm install &&
+        npx expo start --tunnel --non-interactive
+      "
 
 volumes:
   mysql_data:

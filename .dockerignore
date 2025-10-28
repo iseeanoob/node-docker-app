@@ -1,6 +1,54 @@
+# ========================================
+# 🧠 Node / Express backend
+# ========================================
 node_modules
-npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.DS_Store
+
+# Local environment & secrets
+.env
+secret.env
+
+# Logs
+*.log
+logs/
+
+# Tests and coverage
+__tests__/
+coverage/
+
+# ========================================
+# 📱 Expo project (client app)
+# ========================================
+expo project/node_modules/
+expo project/.expo/
+expo project/.expo-shared/
+expo project/web-build/
+expo project/dist/
+expo project/build/
+expo project/npm-debug.log*
+expo project/yarn-debug.log*
+expo project/yarn-error.log*
+expo project/*.log
+
+# ========================================
+# 🐳 Docker & Git
+# ========================================
 Dockerfile
 docker-compose.yml
+docker-compose.override.yml
+mysql_data/
 .git
 .gitignore
+.vscode/
+.idea/
+
+# ========================================
+# 🧹 System files
+# ========================================
+Thumbs.db
+*.swp
+*.swo
