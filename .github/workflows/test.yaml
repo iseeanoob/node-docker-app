@@ -1,12 +1,13 @@
-name: Test og Build
+name: Test
 on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu latest
+
     steps:
-      - uses: actions/checkout@v4 # Viktig! Henter koden din
-      - name: Sett opp Node/Python/Java
+      - uses: actions/checkout@v4
+      - name: sett opp node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
