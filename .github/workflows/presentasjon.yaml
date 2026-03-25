@@ -1,14 +1,27 @@
-name: presentasjon
-on: [push]
+name: Test og Build 
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: node app
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm install
-      - run: npm run build
+on: [push] 
+
+  
+
+jobs: 
+
+  build: 
+
+    runs-on: ubuntu-latest 
+
+    steps: 
+
+      - uses: actions/checkout@v4  
+
+      - name: Sett opp Node/Python/Java 
+
+        uses: actions/setup-node@v4 
+
+        with: 
+
+          node-version: '20' 
+
+      - run: npm install 
+
+      - run: npm test 

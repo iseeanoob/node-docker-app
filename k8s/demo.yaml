@@ -17,7 +17,6 @@ spec:
         image: nginx
         ports:
         - containerPort: 80
-        # HER ER MAGIEN:
         livenessProbe:
           httpGet:
             path: /
