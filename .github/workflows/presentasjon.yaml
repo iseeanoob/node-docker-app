@@ -1,12 +1,12 @@
-name: Test og Build
+name: presentasjon
 on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 
-      - name: Sett opp Node/Python/Java
+      - uses: actions/checkout@v4
+      - name: sett opp Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
