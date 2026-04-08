@@ -27,7 +27,7 @@
     // Fetch and display users
     async function fetchUsers() {
       try {
-        const response = await fetch("http://localhost:3000/users", {
+        const response = await fetch("/users", {
           headers: { "Authorization": "Bearer " + token }
         });
         const users = await response.json();

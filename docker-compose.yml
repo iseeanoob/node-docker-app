@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # 🗄️ MySQL Database
   db:
@@ -11,10 +9,12 @@ services:
       MYSQL_DATABASE: mydb
       MYSQL_USER: iseeanoob
       MYSQL_PASSWORD: pass
+      MYSQL_ROOT_HOST: "%"
     ports:
-      - "3308:3308"
+      - "3308:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - my-network
     healthcheck:
@@ -32,12 +32,12 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "4000:4000"
+      - "4000:3000"
     env_file:
       - secret.env
     environment:
       DB_HOST: db
-      DB_USER: iseeanoob
+      DB_USER: root
       DB_PASSWORD: pass
       DB_NAME: mydb
       JWT_SECRET: supersecretjwtkey
@@ -45,8 +45,6 @@ services:
     networks:
       - my-network
     command: ["npm", "start"]
-    volumes:
-      - .:/usr/src/app
 
   # 📱 Expo App
   expo:
